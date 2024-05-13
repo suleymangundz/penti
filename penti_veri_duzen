@@ -1,0 +1,123 @@
+#%%
+import pandas as pd
+import matplotlib.pyplot as plt
+import re
+from unidecode import unidecode
+import plotly.express as px
+import seaborn as sns
+
+
+# CSV dosyasını yükleme
+df = pd.read_csv('5-10Penti_all_data.csv')
+
+# Verinin ilk birkaç satırını görüntüleme
+#print(df.head())
+print(df.columns)
+#%%
+columns_to_clean = ['Brand', 'Product','Satici İsim', 'satici Unvan', 'Satici Sehir', 'Rating', 'Degerleme',
+       'Favorite', 'Soru Cevap','Cinsiyet','Ürün Çeşidi']
+
+columns_to_fill = ['Rating', 'Degerleme', 'Favorite', 'Soru Cevap']
+df[columns_to_fill] = df[columns_to_fill].fillna(0)
+
+
+for column in columns_to_clean:
+    df[column] = df[column].apply(lambda x: re.sub(r'[^\w\s]', '', unidecode(str(x))))
+
+# Rating sütununu sayısal bir veri türüne dönüştürme
+df['Rating'] = pd.to_numeric(df['Rating'], errors='coerce')
+# Boş değerleri 0 ile doldurma
+df['Rating'].fillna(0, inplace=True)
+# Ondalık kısmı korumak için dönüşüm
+df['Rating'] = df['Rating'] / 10
+# Veri türünü ondalık sayıya değiştirme
+df['Rating'] = df['Rating'].astype(float)
+
+
+df['Degerleme'] = pd.to_numeric(df['Degerleme'], errors='coerce')
+df['Favorite'] = pd.to_numeric(df['Favorite'], errors='coerce')
+df['Soru Cevap'] = pd.to_numeric(df['Soru Cevap'], errors='coerce')
+product_types = df['Ürün Çeşidi'].unique()
+# Verinin ilk birkaç satırını görüntüleme
+print(df.head())
+
+# Güncellenmiş DataFrame'i CSV dosyasına yazma
+df.to_csv("cleaned_data.csv", index=False)
+
+#%%
+seller_city_counts = df['Satici Sehir'].value_counts()
+
+# Pasta grafiği için renkler
+colors = plt.cm.tab20.colors
+
+# Grafiği oluşturun
+plt.figure(figsize=(8, 8))
+plt.pie(seller_city_counts, labels=seller_city_counts.index, autopct='%1.1f%%', colors=colors)
+plt.title('Satıcı Şehirlerin Dağılımı')
+plt.axis('equal')  # Daireyi dairesel yapar
+
+# Grafiği gösterin
+plt.show()
+# %%
+df.info()
+
+# %%
+            ###############Ürün Gruplarına Göre Raiting###############
+grp_Kadin = df[df.Cinsiyet == 'Kadin'].groupby("Ürün Çeşidi")["Rating"].mean().sort_values(ascending=False)
+dist_df = pd.DataFrame({'Urun Cesidi': grp_Kadin.index, 'Raiting': grp_Kadin.values}) 
+dist_df.head()
+# %%
+fig = px.bar(dist_df, x='Urun Cesidi', y='Raiting', color='Raiting', height=600, width=800, text='Raiting', title='Ürün Gruplarına Göre Ortalama Raiting')
+fig.update_traces(texttemplate='%{text:.2s}', textposition='outside')
+fig.update_layout(uniformtext_minsize=8, uniformtext_mode='hide')
+fig.show()
+
+# %%
+
+                ###############Correlation Heatmap###############
+df_numeric = df.drop(columns=['','Original Price','Satici İsim','Satici Sehir','Link', 'Brand', 'Product','satici Unvan','Cinsiyet','Ürün Çeşidi'])
+
+# Calculate the correlation matrix
+correlation_matrix = df_numeric.corr()
+
+# Visualize the correlation matrix as a heatmap
+plt.figure(figsize=(10, 8))
+sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm')
+plt.title("Correlation Heatmap", fontsize = 14, fontweight = 'bold', color = 'darkblue')
+plt.savefig('Correlation Heatmap.png')
+plt.show()
+
+
+
+
+
+
+
+
+# %%
+
+
+# Satici isimlerine göre gruplayıp ortalama Rating ve Degerleme değerlerini hesaplayın
+seller_ratings = df.groupby('Satici İsim')['Rating'].mean()
+seller_reviews = df.groupby('Satici İsim')['Degerleme'].mean()
+
+# Grafik boyutunu belirleyin
+plt.figure(figsize=(12, 6))
+fig = px.bar(dist_df, x='Raiting', y='Satici İsim', color='Agricultural Area', height=600, width=1000, text='Agricultural Area', title='Agricultural Area in 1998')
+fig.update_traces(texttemplate='%{text:.2s}', textposition='outside')
+fig.update_layout(uniformtext_minsize=8, uniformtext_mode='hide')
+fig.show()
+
+# Degerleme değerlerini içeren çubuk grafik
+plt.subplot(1, 2, 2)
+seller_reviews.plot(kind='bar', color=colors)
+plt.title('Satıcı İsimlerine Göre Ortalama Degerleme')
+plt.xlabel('Satıcı İsmi')
+plt.ylabel('Ortalama Degerleme')
+plt.xticks(rotation=90)
+
+# Grafikleri gösterin
+plt.tight_layout()
+plt.show()
+
+# %%
